@@ -1,10 +1,19 @@
 import * as vscode from 'vscode';
 import type { DetectedArbFile } from '../arb/detector';
+import type { Catalog, CatalogRow } from '../model/catalog';
 
-export function getStringboardHtml(detectedFiles: DetectedArbFile[]): string {
-	const body = detectedFiles.length === 0
-		? renderEmptyState()
-		: renderFileList(detectedFiles);
+export function getStringboardHtml(
+	detectedFiles: DetectedArbFile[],
+	catalog: Catalog | undefined,
+): string {
+	let body: string;
+	if (detectedFiles.length === 0) {
+		body = renderEmptyState();
+	} else if (catalog && catalog.rows.length > 0) {
+		body = renderCatalog(detectedFiles, catalog);
+	} else {
+		body = renderFileList(detectedFiles);
+	}
 
 	return /* html */ `
       <!DOCTYPE html>
@@ -77,6 +86,48 @@ export function getStringboardHtml(detectedFiles: DetectedArbFile[]): string {
             text-transform: uppercase;
             letter-spacing: 0.5px;
           }
+          .catalog {
+            margin-top: 16px;
+            border: 1px solid var(--vscode-panel-border);
+            border-radius: 6px;
+            overflow: hidden;
+          }
+          .catalog-row {
+            padding: 12px 14px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            font-size: 13px;
+          }
+          .catalog-row:last-child { border-bottom: none; }
+          .catalog-key {
+            font-family: var(--vscode-editor-font-family);
+            font-weight: 600;
+            margin-bottom: 6px;
+          }
+          .catalog-description {
+            color: var(--vscode-descriptionForeground);
+            font-size: 12px;
+            margin-bottom: 6px;
+          }
+          .catalog-translations {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+          }
+          .catalog-translation {
+            display: flex;
+            gap: 8px;
+            font-size: 12px;
+          }
+          .catalog-translation .locale-chip { flex: 0 0 auto; }
+          .catalog-translation .value {
+            flex: 1;
+            white-space: pre-wrap;
+            word-break: break-word;
+          }
+          .catalog-translation .value.empty {
+            color: var(--vscode-descriptionForeground);
+            font-style: italic;
+          }
         </style>
       </head>
       <body>
@@ -85,6 +136,42 @@ export function getStringboardHtml(detectedFiles: DetectedArbFile[]): string {
         ${body}
       </body>
       </html>
+    `;
+}
+
+function renderCatalog(detectedFiles: DetectedArbFile[], catalog: Catalog): string {
+	const summary = `Found ${detectedFiles.length} ARB file${detectedFiles.length === 1 ? '' : 's'} · ${catalog.rows.length} key${catalog.rows.length === 1 ? '' : 's'} · template: ${escapeHtml(catalog.templateLocale)}`;
+	const rows = catalog.rows.map(row => renderCatalogRow(row, catalog.locales)).join('');
+
+	return /* html */ `
+        <p class="subtitle">${summary}</p>
+        <div class="catalog">${rows}</div>
+    `;
+}
+
+function renderCatalogRow(row: CatalogRow, locales: string[]): string {
+	const description = row.description
+		? `<div class="catalog-description">${escapeHtml(row.description)}</div>`
+		: '';
+
+	const translations = locales.map(locale => {
+		const value = row.translations.get(locale) ?? '';
+		const valueClass = value === '' ? 'value empty' : 'value';
+		const displayValue = value === '' ? '(empty)' : escapeHtml(value);
+		return /* html */ `
+            <div class="catalog-translation">
+              <span class="locale-chip">${escapeHtml(locale)}</span>
+              <span class="${valueClass}">${displayValue}</span>
+            </div>
+        `;
+	}).join('');
+
+	return /* html */ `
+        <div class="catalog-row">
+          <div class="catalog-key">${escapeHtml(row.key)}</div>
+          ${description}
+          <div class="catalog-translations">${translations}</div>
+        </div>
     `;
 }
 
