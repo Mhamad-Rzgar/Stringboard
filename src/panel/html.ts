@@ -90,43 +90,59 @@ export function getStringboardHtml(
             margin-top: 16px;
             border: 1px solid var(--vscode-panel-border);
             border-radius: 6px;
-            overflow: hidden;
           }
-          .catalog-row {
-            padding: 12px 14px;
-            border-bottom: 1px solid var(--vscode-panel-border);
+          table.catalog-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
             font-size: 13px;
+            color: var(--vscode-foreground);
           }
-          .catalog-row:last-child { border-bottom: none; }
-          .catalog-key {
-            font-family: var(--vscode-editor-font-family);
+          table.catalog-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            text-align: left;
             font-weight: 600;
-            margin-bottom: 6px;
-          }
-          .catalog-description {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
             color: var(--vscode-descriptionForeground);
-            font-size: 12px;
-            margin-bottom: 6px;
+            background: var(--vscode-editor-background);
+            border-bottom: 1px solid var(--vscode-panel-border);
+            padding: 10px 14px;
+            white-space: nowrap;
           }
-          .catalog-translations {
-            display: flex;
-            flex-direction: column;
-            gap: 2px;
-          }
-          .catalog-translation {
-            display: flex;
-            gap: 8px;
-            font-size: 12px;
-          }
-          .catalog-translation .locale-chip { flex: 0 0 auto; }
-          .catalog-translation .value {
-            flex: 1;
+          table.catalog-table tbody td {
+            padding: 8px 14px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            vertical-align: top;
             white-space: pre-wrap;
             word-break: break-word;
           }
-          .catalog-translation .value.empty {
+          table.catalog-table tbody tr:last-child td { border-bottom: none; }
+          table.catalog-table tbody tr:nth-child(even) td {
+            background: var(--vscode-list-inactiveSelectionBackground, transparent);
+            background: color-mix(in srgb, var(--vscode-foreground) 3%, transparent);
+          }
+          table.catalog-table tbody tr:hover td {
+            background: var(--vscode-list-hoverBackground);
+          }
+          table.catalog-table .col-key {
+            font-family: var(--vscode-editor-font-family);
+            font-weight: 500;
+            color: var(--vscode-foreground);
+            width: 1%;
+            white-space: nowrap;
+          }
+          table.catalog-table .col-description {
             color: var(--vscode-descriptionForeground);
-            font-style: italic;
+            font-size: 12px;
+            max-width: 280px;
+          }
+          table.catalog-table .col-translation.empty {
+            color: var(--vscode-descriptionForeground);
+            text-align: center;
           }
         </style>
       </head>
@@ -141,37 +157,44 @@ export function getStringboardHtml(
 
 function renderCatalog(detectedFiles: DetectedArbFile[], catalog: Catalog): string {
 	const summary = `Found ${detectedFiles.length} ARB file${detectedFiles.length === 1 ? '' : 's'} · ${catalog.rows.length} key${catalog.rows.length === 1 ? '' : 's'} · template: ${escapeHtml(catalog.templateLocale)}`;
+	const localeHeaders = catalog.locales
+		.map(locale => `<th scope="col">${escapeHtml(locale)}${locale === catalog.templateLocale ? ' <span class="template-badge">Template</span>' : ''}</th>`)
+		.join('');
 	const rows = catalog.rows.map(row => renderCatalogRow(row, catalog.locales)).join('');
 
 	return /* html */ `
         <p class="subtitle">${summary}</p>
-        <div class="catalog">${rows}</div>
+        <div class="catalog">
+          <table class="catalog-table">
+            <thead>
+              <tr>
+                <th scope="col">Key</th>
+                <th scope="col">Description</th>
+                ${localeHeaders}
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
     `;
 }
 
 function renderCatalogRow(row: CatalogRow, locales: string[]): string {
-	const description = row.description
-		? `<div class="catalog-description">${escapeHtml(row.description)}</div>`
-		: '';
-
+	const description = row.description ? escapeHtml(row.description) : '';
 	const translations = locales.map(locale => {
 		const value = row.translations.get(locale) ?? '';
-		const valueClass = value === '' ? 'value empty' : 'value';
-		const displayValue = value === '' ? '(empty)' : escapeHtml(value);
-		return /* html */ `
-            <div class="catalog-translation">
-              <span class="locale-chip">${escapeHtml(locale)}</span>
-              <span class="${valueClass}">${displayValue}</span>
-            </div>
-        `;
+		if (value === '') {
+			return '<td class="col-translation empty">—</td>';
+		}
+		return `<td class="col-translation">${escapeHtml(value)}</td>`;
 	}).join('');
 
 	return /* html */ `
-        <div class="catalog-row">
-          <div class="catalog-key">${escapeHtml(row.key)}</div>
-          ${description}
-          <div class="catalog-translations">${translations}</div>
-        </div>
+        <tr>
+          <td class="col-key">${escapeHtml(row.key)}</td>
+          <td class="col-description">${description}</td>
+          ${translations}
+        </tr>
     `;
 }
 
