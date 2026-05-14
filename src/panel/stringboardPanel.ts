@@ -54,6 +54,17 @@ export default class StringboardPanel {
 		this.panel = panel;
 		this.panel.webview.html = getStringboardHtml(detectedFiles, catalog);
 
+		this.panel.webview.onDidReceiveMessage(
+			(message: { type: string; payload?: unknown }) => {
+				console.log('Stringboard message:', {
+					type: message.type,
+					payload: message.payload,
+				});
+			},
+			null,
+			this.disposables,
+		);
+
 		this.panel.onDidDispose(() => this.dispose(), null, this.disposables);
 	}
 

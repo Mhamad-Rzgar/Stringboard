@@ -140,9 +140,27 @@ export function getStringboardHtml(
             font-size: 12px;
             max-width: 280px;
           }
-          table.catalog-table .col-translation.empty {
+          table.catalog-table .col-translation {
+            padding: 0;
+          }
+          table.catalog-table .cell {
+            padding: 8px 14px;
+            outline: none;
+            min-height: 1em;
+            white-space: pre-wrap;
+            word-break: break-word;
+          }
+          table.catalog-table .cell:empty::before {
+            content: '—';
             color: var(--vscode-descriptionForeground);
-            text-align: center;
+          }
+          table.catalog-table .cell:focus {
+            outline: 1px solid var(--vscode-focusBorder);
+            outline-offset: -1px;
+            background: var(--vscode-editor-background);
+          }
+          table.catalog-table .cell:focus:empty::before {
+            content: '';
           }
         </style>
       </head>
@@ -150,6 +168,43 @@ export function getStringboardHtml(
         <h1>Stringboard</h1>
         <p class="subtitle">Visual editor for Flutter translation files.</p>
         ${body}
+        <script>
+          (function () {
+            const vscode = acquireVsCodeApi();
+            const cells = document.querySelectorAll('.cell[contenteditable="true"]');
+            cells.forEach(function (cell) {
+              let original = cell.textContent || '';
+              cell.addEventListener('focus', function () {
+                original = cell.textContent || '';
+              });
+              cell.addEventListener('blur', function () {
+                const value = cell.textContent || '';
+                if (value === original) {
+                  return;
+                }
+                original = value;
+                vscode.postMessage({
+                  type: 'cell-changed',
+                  payload: {
+                    key: cell.dataset.key,
+                    locale: cell.dataset.locale,
+                    value: value,
+                  },
+                });
+              });
+              cell.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  cell.blur();
+                } else if (event.key === 'Escape') {
+                  event.preventDefault();
+                  cell.textContent = original;
+                  cell.blur();
+                }
+              });
+            });
+          })();
+        </script>
       </body>
       </html>
     `;
@@ -181,12 +236,10 @@ function renderCatalog(detectedFiles: DetectedArbFile[], catalog: Catalog): stri
 
 function renderCatalogRow(row: CatalogRow, locales: string[]): string {
 	const description = row.description ? escapeHtml(row.description) : '';
+	const keyAttr = escapeHtml(row.key);
 	const translations = locales.map(locale => {
 		const value = row.translations.get(locale) ?? '';
-		if (value === '') {
-			return '<td class="col-translation empty">—</td>';
-		}
-		return `<td class="col-translation">${escapeHtml(value)}</td>`;
+		return `<td class="col-translation"><div class="cell" contenteditable="true" spellcheck="false" data-key="${keyAttr}" data-locale="${escapeHtml(locale)}">${escapeHtml(value)}</div></td>`;
 	}).join('');
 
 	return /* html */ `
